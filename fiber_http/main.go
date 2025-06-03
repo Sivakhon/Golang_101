@@ -1,11 +1,10 @@
 package main
 
 import (
-    "os"
+	"os"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/jwt/v2"
-	"github.com/golang-jwt/jwt/v4"
+	jwtware "github.com/gofiber/jwt/v2" // Importing the JWT middleware for Fiber (validation jwt)
 )
 
 type Book struct {
@@ -33,21 +32,17 @@ func main() {
 
 	app := fiber.New()
 
-	app.Post("/login", loginBook)
-
-	app.Use((checkmiddleware))
+	app.Post("/login", login)
 
 	app.Use(jwtware.New(jwtware.Config{
-	SigningKey: []byte(os.Getenv("JWT_SECRET")),
+		SigningKey: []byte(os.Getenv("JWT_SECRET")),
 	}))
+	app.Use((checkmiddleware))
 
 	app.Get("/books", getBooks)
 	app.Get("/books/:id", getBook)
-	app.Get("/hello", func(c fiber.Ctx) error {
-		return c.SendString("Hello, World!")
-	})
 
-	app.Post("/books", createbook)
+	app.Post("/books", createBook)
 	app.Post("/upload", uploadFile)
 	app.Put("/books/:id", updateBook)
 	app.Delete("/books/:id", deleteBook)

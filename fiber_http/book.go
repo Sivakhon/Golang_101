@@ -1,21 +1,16 @@
 package main
 
 import (
-	"os"
 	"strconv"
-	"time"
 
-	"github.com/gofiber/fiber/v3"
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/gofiber/fiber/v2"
 )
 
-
-
-func getBooks(c fiber.Ctx) error {
+func getBooks(c *fiber.Ctx) error {
 	return c.JSON(books)
 }
 
-func getBook(c fiber.Ctx) error {
+func getBook(c *fiber.Ctx) error {
 	bookIdStr := c.Params("id")
 	boolId, err := strconv.Atoi(bookIdStr)
 	if err != nil || boolId < 0 || boolId >= len(books) {
@@ -25,36 +20,43 @@ func getBook(c fiber.Ctx) error {
 	return c.JSON(books[int(boolId)])
 }
 
-func createbook(c fiber.Ctx) error {
+func createBook(c *fiber.Ctx) error {
 	book := new(Book)
-	if err := c.Bind().Body(book); err != nil {
-		return c.Status(400).SendString(err.Error())
+
+	if err := c.BodyParser(book); err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
 	}
 
+	book.ID = len(books) + 1
 	books = append(books, *book)
-	return c.Status(200).SendString("Book created successfully")
+
+	return c.JSON(book)
 }
 
-func updateBook(c fiber.Ctx) error {
-	bookIdStr := c.Params("id")
-
-	bookId, err := strconv.Atoi(bookIdStr)
-	if err != nil || bookId < 0 || bookId >= len(books) {
-		return c.Status(400).SendString("Invalid book ID")
+func updateBook(c *fiber.Ctx) error {
+	id, err := strconv.Atoi(c.Params("id"))
+	if err != nil {
+		return c.SendStatus(fiber.StatusBadRequest)
 	}
 
 	bookUpdate := new(Book)
-	if err := c.Bind().Body(bookUpdate); err != nil {
-		return c.Status(400).SendString(err.Error())
+	if err := c.BodyParser(bookUpdate); err != nil {
+		return c.Status(fiber.StatusBadRequest).SendString(err.Error())
 	}
 
-	books[bookId].Title = bookUpdate.Title
-	books[bookId].Author = bookUpdate.Author
+	for i, book := range books {
+		if book.ID == id {
+			book.Title = bookUpdate.Title
+			book.Author = bookUpdate.Author
+			books[i] = book
+			return c.JSON(book)
+		}
+	}
 
-	return c.Status(200).SendString("Book updated successfully")
+	return c.SendStatus(fiber.StatusNotFound)
 }
 
-func deleteBook(c fiber.Ctx) error {
+func deleteBook(c *fiber.Ctx) error {
 	bookIdStr := c.Params("id")
 
 	bookId, err := strconv.Atoi(bookIdStr)
@@ -67,7 +69,7 @@ func deleteBook(c fiber.Ctx) error {
 	return c.Status(200).SendString("Book delete successfully")
 }
 
-func uploadFile(c fiber.Ctx) error {
+func uploadFile(c *fiber.Ctx) error {
 	file, err := c.FormFile("image")
 	if err != nil {
 		return c.Status(400).SendString(err.Error())
@@ -80,33 +82,4 @@ func uploadFile(c fiber.Ctx) error {
 	}
 
 	return c.SendString("File uploaded successfully")
-}
-
-func loginBook(c fiber.Ctx) error {
-	user := new(User)
-	if err := c.Bind().Body(user); err != nil {
-		return c.Status(400).SendString(err.Error())
-	}
-
-	if user.Username != memberuser.Username || user.Password != memberuser.Password {
-		return fiber.ErrUnauthorized
-	}
-	token := jwt.New(jwt.SigningMethodHS256)
-
-    // Set claims
-    claims := token.Claims.(jwt.MapClaims)
-    claims["Username"] = user.Username
-	claims["role"] = "admin"
-    claims["exp"] = time.Now().Add(time.Hour * 72).Unix()
-
-    // Generate encoded token
-    t, err := token.SignedString([]byte(os.Getenv("JWT_SECRET")))
-    if err != nil {
-    	return c.SendStatus(fiber.StatusInternalServerError)
-    }
-
-	return c.JSON(fiber.Map{
-		"message": "Login successful",
-		"token":   t,
-	})
 }
